@@ -1,87 +1,123 @@
 C++ LEARNING NOTES - ANIMAL CLINIC (OOP exercise)
 Last updated: 2026-11-22
 Status: open exercise, still being improved.
-
+ 
 Purpose of these notes
-Record what I practised, the mistakes I made, why they happened, and the questions I still need to answer myself. Solutions are kept out on purpose: the goal is to understand each fix before using it.
-
-
+A record to review later: what I practised, the mistakes I made, WHY they happened, and the answer to each question I raised. Each section ends with the answer, so I can come back months later and remember what I did.
+ 
+ 
 1. CONCEPTS PRACTISED
-
+ 
 - Classes and objects: attributes, constructors, methods.
 - Inheritance: Animal is the base class; Cao (dog) and Gato (cat) derive from it.
 - Encapsulation: attributes are private and read or changed through getters and setters.
-- Pointers: the clinic stores animals through Animal* so that derived objects can be kept in one collection.
-- Polymorphism: virtual methods are overridden so each derived class runs its own version.
-- Virtual vs pure virtual: a pure virtual method (= 0) makes the class abstract, so it cannot be instantiated.
-- Arrays of pointers: how they are declared and what their elements contain before they are set.
-- Strings: + concatenates strings; << writes to a stream such as cout; to_string() converts an int to a string.
-- Random numbers: rand() gives a value in a range via the modulo operator; srand(time(NULL)) seeds the generator and should run only once.
-- Linking: a declared function needs a matching definition, otherwise the linker reports "undefined reference".
-
-
-2. MISTAKES AND WHAT EACH ONE TAUGHT
-
+- Pointers: the clinic stores animals through Animal* so derived objects can live in one collection.
+- Polymorphism: virtual methods are overridden, so a call through Animal* runs the derived class's version.
+- Virtual vs pure virtual: a pure virtual method (= 0) makes the class abstract; it cannot be instantiated and derived classes must implement the method.
+- Arrays of pointers: declared with a fixed size; their elements hold garbage until set.
+- Strings: + concatenates strings; << writes to a stream such as cout; to_string() converts a number to a string.
+- Random numbers: rand() % N + 1 gives 1..N; srand(time(NULL)) seeds the generator, once per program.
+- Linking: a declared function needs a definition somewhere, otherwise the linker reports "undefined reference".
+ 
+ 
+2. MISTAKES, CAUSES AND ANSWERS
+ 
 2.1 "undefined reference to Animal::exercita()"
-- Cause: exercita() was declared in Animal.h but had no definition in Animal.cpp, and the compiler could not find one at link time.
-- Lesson: the compiler checks that a declaration exists; the linker checks that the code exists.
-- Open question: should a generic Animal be creatable on its own? The answer decides between giving Animal a body for the method or making it pure virtual.
-
-2.2 "The array is already occupied" when registering an animal
-- Cause: contagem = 0 initialises the counter only. The elements of the array a[200] are not set, so they hold leftover values that are not nullptr.
-- Lesson: initialising one variable does not initialise the elements of an array. Each element needs its own initial value, for example through the constructor.
-- Open question: what is the difference between a value that is garbage and one that is nullptr, and why does the check depend on it?
-
-2.3 Printing the strings
-- Mistake: using << to build a string that a function returns.
-- Lesson: << is for output streams; + joins strings; to_string() converts numbers.
-
+What happened: exercita() was declared virtual in Animal.h but never defined in Animal.cpp.
+Why it only failed at the end: the compiler only checks that a declaration exists. The linker checks that the code exists. A class with virtual methods has a table of function addresses (the vtable), and building that table needs the address of every virtual function, even one that is never called. The linker error pointed at the Animal vtable for this reason.
+Answer / decision: there are two valid fixes.
+  - Define the method in Animal.cpp, if a generic Animal should be allowed to exist:
+        string Animal::exercita() { return "Animal a exercitar"; }
+  - Make it pure virtual in Animal.h, if Animal should NOT be created on its own:
+        virtual string exercita() = 0;
+    Then no definition is needed in Animal, and Cao and Gato must each implement it.
+Keep "virtual" either way, so each derived class runs its own version.
+ 
+2.2 "The position is already occupied" when registering an animal
+What happened: Clinica has Animal* a[200] and int contagem = 0. Registering failed because the check looked at a[contagem] == nullptr and found something else.
+Why: "int contagem = 0" initialises only the counter. The 200 pointers in the array are never set, so they contain whatever was in that memory (garbage).
+Garbage vs nullptr: a garbage pointer holds a random address; reading or using it is undefined behaviour. nullptr is a defined value that means "points to nothing", so it is the only value a "is this slot empty?" check can rely on.
+Answer: initialise every element to nullptr, either with a default member initialiser
+        Animal* a[200] = {};
+or with a loop in the constructor that sets a[i] = nullptr for each i from 0 to 199.
+ 
+2.3 Building the returned string
+What happened: return "Corri" << n << "quilometros"; does not compile in a function that returns string.
+Why: << is the stream operator, used with cout. A function that returns a string must build a string.
+Answer: use + and to_string:
+        return "Corri " + to_string(n) + " quilometros";
+Extra rule worth remembering: with +, at least one side must be a std::string. "a" + "b" fails because both are plain text literals. In the line above it works because to_string(n) returns a string.
+ 
 2.4 Random numbers repeating
-- Mistake: calling srand(time(NULL)) inside a function that runs many times close together.
-- Lesson: the seed is set once, at the start of the program. Calling it again inside a function can give the same numbers.
-
-2.5 Stack object vs pointer
-- In main, the animal was created as a plain object and its address was stored in the clinic.
-- Open questions: how long does that object live? What happens if the clinic keeps the pointer after main ends? When an object is created with new, who is responsible for deleting it, and where should that happen?
-
+What happened: srand(time(NULL)) was called inside exercita().
+Why: time(NULL) changes only once per second. Two calls in the same second set the same seed, which restarts the same sequence, so the same "random" number comes out.
+Answer: call srand(time(NULL)) once, at the start of main(), and only call rand() inside exercita().
+Range formula: rand() % 5 gives 0..4, so (rand() % 5) + 1 gives 1..5. In general: rand() % (max - min + 1) + min.
+ 
+2.5 Stack object vs pointer (who owns the animal?)
+What happened: in main, the animal was created as a normal variable and its address was given to the clinic.
+Why it matters:
+  - A normal variable in main lives until the end of its scope and is destroyed automatically.
+  - Local variables are destroyed in reverse order of creation. If the clinic is declared first and the animal after it, the animal is destroyed first and the clinic last.
+  - If the clinic's destructor deletes the pointers it holds, it would then delete an object that was never created with new. That is undefined behaviour.
+Answer: pick one owner and be consistent.
+  - If the clinic OWNS the animals: always create them with new, give the pointer to the clinic, and let the clinic's destructor delete them. Never register the address of a normal variable.
+  - If main owns them: the clinic never deletes anything, and the animals must outlive the clinic.
+  Also, if the clinic deletes through an Animal*, Animal needs a virtual destructor, otherwise the derived class's destructor does not run.
+Note: if Animal becomes abstract (pure virtual), "Animal a = {...}" no longer compiles; main must create a Cao or Gato instead.
+ 
 2.6 Naming
-- A local variable in main and a member of Clinica were both called a. This makes the code harder to read and to debug.
-- Lesson: choose names that say what the variable holds.
-
-2.7 Typos in loops and output
-- cout with a stray * before << and a broken "for" line. Read each line slowly and compare it with the structure of the loop.
-
-
-3. DESIGN DECISIONS STILL OPEN
-
-- Should a clinic keep animals that have already left, or remove them from the array? Each choice leads to a different display method (only current animals vs all animals with their status). The current code supports showing all animals with a status label.
-- Before the clinic adds an animal, what should it check? Think about: a null pointer, a full array (200 positions), and a duplicate registration.
-- Weight rule for the cat's exercise: the weight must be checked before it is reduced, so that it never goes below the 2.5 kg minimum. Why is checking first safer than reducing and then checking?
-- Responsibility: should Clinica delete the animals it stores in its destructor? If so, it must know whether each animal was created with new.
-
-
-4. SELF-CHECK (answer without looking at the code)
-
-[ ] Explain why an uninitialised pointer can look "occupied".
-[ ] Explain the difference between virtual and pure virtual, and when a class becomes abstract.
-[ ] Explain the difference between a compiler error and a linker error, with an example of each.
-[ ] Explain why srand should be called once.
-[ ] Explain why + is used for strings and << for output.
-[ ] Explain who owns a pointed-to object and who is responsible for freeing it.
-[ ] Write the range formula for a random number from 1 to 5 from memory.
-[ ] Explain why a state change should come after its precondition is checked.
-
-
+What happened: a variable in main and a member of Clinica were both called "a".
+Why it matters: the same short name in two places makes code hard to read and hides bugs.
+Answer: use names that say what the variable holds, for example "animais" for the array of pointers.
+ 
+2.7 Syntax typos in the display methods
+What happened: the pasted code showed a stray * around << (cout *<< *a[i]->showAll()).
+Likely cause: these are probably artefacts from copying out of the chat (markdown turns *...* into italics). I need to check the real file in CLion; the correct line has no extra stars.
+ 
+ 
+3. DESIGN DECISIONS AND ANSWERS
+ 
+3.1 Keep animals that have left, or remove them from the array?
+- Keep them (history): each animal has a naClinica flag. MostraClinica() prints only animals whose flag is true; MostraTodosAnimais() prints all of them with "Na clinica" / "Fora da clinica". This is what the current code does.
+- Remove them: simpler display, but the array must be compacted after each removal, and the history is lost.
+Current choice: keep them with the flag.
+ 
+3.2 What must the clinic check before registering?
+- the pointer is not nullptr;
+- the array is not full (contagem < 200; index 200 is out of range);
+- the animal is not already registered (compare the pointer, or the name).
+Only after all checks pass: a[contagem] = animal; contagem++.
+ 
+3.3 Weight rule for the cat's exercise (minimum 2.5 kg)
+Rule: compute the new weight first (weight * 0.9) and check it is >= 2.5; only then change the object.
+Why check first: if I reduce first and check after, the object is already in an invalid state and I would have to undo it. Checking first means the object is never in an invalid state.
+ 
+3.4 Who deletes what?
+See 2.5. Decide the owner first, then make the destructor match: if Clinica owns the animals, its destructor deletes each non-null pointer and Animal needs a virtual destructor.
+ 
+ 
+4. SELF-CHECK WITH ANSWERS
+ 
+1. Why can an uninitialised pointer look "occupied"?
+   It holds a random leftover address, which is not nullptr, so the "is it empty?" check says it is used.
+2. Virtual vs pure virtual?
+   Virtual has a body in the base class and can be overridden. Pure virtual (= 0) has no body to call and forces derived classes to implement it. A class with at least one pure virtual method is abstract and cannot be instantiated.
+3. Compiler error vs linker error?
+   The compiler works on one .cpp file at a time and finds syntax and type errors (for example "return "x" << n;"). The linker joins all compiled files and finds missing definitions (for example "undefined reference to Animal::exercita()").
+4. Why call srand once?
+   The seed comes from time(NULL), which changes once per second. Re-seeding on every call can restart the same sequence and repeat numbers.
+5. Why + for strings and << for output?
+   + joins strings and returns a new string. << sends data to an output stream such as cout; it does not build a string.
+6. Who owns a pointed-to object?
+   Whoever created it with new owns it and must delete it, exactly once. A normal variable is owned by its scope and must never be deleted manually.
+7. Range formula for 1 to 5?
+   (rand() % 5) + 1
+8. Why change state only after checking the precondition?
+   So the object is never left in an invalid state, and there is nothing to undo when the check fails.
+ 
+ 
 5. SESSION LOG
-
+ 
 - Earlier sessions (ChatGPT, chats 0 to 2 of this exercise): worked on the Animal/Cao/Gato hierarchy, the undefined reference error, random numbers in Cao::exercita(), string building, and the clinic array and display methods.
-- 2026-11-22: reviewed the README and these notes; recorded the mistakes above, the open design questions, and the self-check list. Work on the clinic array (initialisation and ownership) is still to be done by me.
-
-
-6. NEXT STEPS (for me, not for the assistant)
-
-1. Explain the array initialisation problem in my own words.
-2. Decide how the clinic should handle full storage and duplicate registration, then write it.
-3. Decide who owns the animals and make the destructor match that decision.
-4. Tidy names and fix the typos in the display methods.
-5. Come back and tick off the self-check list.
+- 2026-11-22: reviewed the code with the notes, published the project to GitHub (repo cpp-learning), and rewrote these notes with the answers included.
