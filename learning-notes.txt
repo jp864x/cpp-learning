@@ -1,0 +1,87 @@
+C++ LEARNING NOTES - ANIMAL CLINIC (OOP exercise)
+Last updated: 2026-11-22
+Status: open exercise, still being improved.
+
+Purpose of these notes
+Record what I practised, the mistakes I made, why they happened, and the questions I still need to answer myself. Solutions are kept out on purpose: the goal is to understand each fix before using it.
+
+
+1. CONCEPTS PRACTISED
+
+- Classes and objects: attributes, constructors, methods.
+- Inheritance: Animal is the base class; Cao (dog) and Gato (cat) derive from it.
+- Encapsulation: attributes are private and read or changed through getters and setters.
+- Pointers: the clinic stores animals through Animal* so that derived objects can be kept in one collection.
+- Polymorphism: virtual methods are overridden so each derived class runs its own version.
+- Virtual vs pure virtual: a pure virtual method (= 0) makes the class abstract, so it cannot be instantiated.
+- Arrays of pointers: how they are declared and what their elements contain before they are set.
+- Strings: + concatenates strings; << writes to a stream such as cout; to_string() converts an int to a string.
+- Random numbers: rand() gives a value in a range via the modulo operator; srand(time(NULL)) seeds the generator and should run only once.
+- Linking: a declared function needs a matching definition, otherwise the linker reports "undefined reference".
+
+
+2. MISTAKES AND WHAT EACH ONE TAUGHT
+
+2.1 "undefined reference to Animal::exercita()"
+- Cause: exercita() was declared in Animal.h but had no definition in Animal.cpp, and the compiler could not find one at link time.
+- Lesson: the compiler checks that a declaration exists; the linker checks that the code exists.
+- Open question: should a generic Animal be creatable on its own? The answer decides between giving Animal a body for the method or making it pure virtual.
+
+2.2 "The array is already occupied" when registering an animal
+- Cause: contagem = 0 initialises the counter only. The elements of the array a[200] are not set, so they hold leftover values that are not nullptr.
+- Lesson: initialising one variable does not initialise the elements of an array. Each element needs its own initial value, for example through the constructor.
+- Open question: what is the difference between a value that is garbage and one that is nullptr, and why does the check depend on it?
+
+2.3 Printing the strings
+- Mistake: using << to build a string that a function returns.
+- Lesson: << is for output streams; + joins strings; to_string() converts numbers.
+
+2.4 Random numbers repeating
+- Mistake: calling srand(time(NULL)) inside a function that runs many times close together.
+- Lesson: the seed is set once, at the start of the program. Calling it again inside a function can give the same numbers.
+
+2.5 Stack object vs pointer
+- In main, the animal was created as a plain object and its address was stored in the clinic.
+- Open questions: how long does that object live? What happens if the clinic keeps the pointer after main ends? When an object is created with new, who is responsible for deleting it, and where should that happen?
+
+2.6 Naming
+- A local variable in main and a member of Clinica were both called a. This makes the code harder to read and to debug.
+- Lesson: choose names that say what the variable holds.
+
+2.7 Typos in loops and output
+- cout with a stray * before << and a broken "for" line. Read each line slowly and compare it with the structure of the loop.
+
+
+3. DESIGN DECISIONS STILL OPEN
+
+- Should a clinic keep animals that have already left, or remove them from the array? Each choice leads to a different display method (only current animals vs all animals with their status). The current code supports showing all animals with a status label.
+- Before the clinic adds an animal, what should it check? Think about: a null pointer, a full array (200 positions), and a duplicate registration.
+- Weight rule for the cat's exercise: the weight must be checked before it is reduced, so that it never goes below the 2.5 kg minimum. Why is checking first safer than reducing and then checking?
+- Responsibility: should Clinica delete the animals it stores in its destructor? If so, it must know whether each animal was created with new.
+
+
+4. SELF-CHECK (answer without looking at the code)
+
+[ ] Explain why an uninitialised pointer can look "occupied".
+[ ] Explain the difference between virtual and pure virtual, and when a class becomes abstract.
+[ ] Explain the difference between a compiler error and a linker error, with an example of each.
+[ ] Explain why srand should be called once.
+[ ] Explain why + is used for strings and << for output.
+[ ] Explain who owns a pointed-to object and who is responsible for freeing it.
+[ ] Write the range formula for a random number from 1 to 5 from memory.
+[ ] Explain why a state change should come after its precondition is checked.
+
+
+5. SESSION LOG
+
+- Earlier sessions (ChatGPT, chats 0 to 2 of this exercise): worked on the Animal/Cao/Gato hierarchy, the undefined reference error, random numbers in Cao::exercita(), string building, and the clinic array and display methods.
+- 2026-11-22: reviewed the README and these notes; recorded the mistakes above, the open design questions, and the self-check list. Work on the clinic array (initialisation and ownership) is still to be done by me.
+
+
+6. NEXT STEPS (for me, not for the assistant)
+
+1. Explain the array initialisation problem in my own words.
+2. Decide how the clinic should handle full storage and duplicate registration, then write it.
+3. Decide who owns the animals and make the destructor match that decision.
+4. Tidy names and fix the typos in the display methods.
+5. Come back and tick off the self-check list.
